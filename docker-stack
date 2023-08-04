@@ -3,7 +3,7 @@ set -e
 
 # Defaults
 DEFAULT_PORT=2375
-DEFAULT_EXEC_ARG=bash
+DEFAULT_EXEC_ARGS=bash
 
 # Functions
 function invalid() {
@@ -40,11 +40,11 @@ function preprocess() {
 # Report usage
 function usage_command() {
     echo
-    echo "Usage: $(basename "$0") [OPTIONS] STACK COMMAND [ARG...]"
+    echo "Usage: $(basename "$0") [OPTIONS] COMMAND [ARG...]"
     echo
-    echo "Execute a command in a running service"
+    echo "Emulate the docker-compose CLI for Docker Swarm"
     echo
-    echo "Options:"
+    echo "OPTIONS:"
     echo "  -e, --env list              Set environment variables"
     echo "  -h, --help                  Display command usage help"
     echo "  -H, --host string           Override the service host"
@@ -52,13 +52,7 @@ function usage_command() {
     echo "  -p, --project-name string   Project(Stack) name"
     echo "  -v, --verbose               Print verbose output"
     echo
-    echo "Exec"
-    echo "  -i, --interactive       Keep STDIN open even if not attached"
-    echo "  -t, --tty               Allocate a pseudo-TTY"
-    echo "  -u, --user string       Username or UID (format: \"<name|uid>[:<group|gid>]\")"
-    echo "  -w, --workdir string    Working directory inside the container"
-    echo
-    echo "Commands:"
+    echo "COMMANDS:"
     echo "  ls          List stacks."
     echo "  exec        Execute a command in a running container."
     echo "  ps          List the tasks in the stack."
@@ -71,15 +65,24 @@ function parse_command() {
 	POSITIONAL=()
 	while [[ $# -gt 0 ]]; do
         case "${1}" in
-            -e|--env)           shift; ENV_VARS+=("$1") ;;
+            -e|--env)           shift; ENV_VARS+=("$1"); 
+                                [ -n "$VERBOSE" ] && echo "ENV_VARS=$ENV_VARS";
+                                ;;
             -h|--help)          usage_command; exit 0 ;;
-            -H|--host)          shift; HOST="${1}" ;;
-            -P|--port)          shift; PORT="${1}" ;;
-            -p|--project-name)  shift; STACK="${1}" ;;
-            -v|--verbose)       VERBOSE=1 ;;
+            -H|--host)          shift; HOST="${1}"; 
+                                [ -n "$VERBOSE" ] && echo "HOST=$HOST";
+                                ;;
+            -P|--port)          shift; PORT="${1}"; 
+                                [ -n "$VERBOSE" ] && echo "PORT=$PORT";
+                                ;;
+            -p|--project-name)  shift; STACK="${1}"; 
+                                [ -n "$VERBOSE" ] && echo "STACK=$STACK";
+                                ;;
+            -v|--verbose)       VERBOSE=1; 
+                                [ -n "$VERBOSE" ] && echo "VERBOSE=$VERBOSE";
+                                ;;
             *)                  COMMAND="${1}"; shift; 
                                 [ -n "$VERBOSE" ] && echo "COMMAND=$COMMAND"
-                                [ -n "$VERBOSE" ] && echo "VERBOSE=$VERBOSE"
                                 break ;;
         esac
         shift
@@ -88,34 +91,59 @@ function parse_command() {
     ARGV=( "$@" )
 }
 
-function parse_subcommand() {
-    # Preprocess to deal with long_opt=value type parameters
-    preprocess "$@"
+function usage_exec() {
+    echo
+    echo "Usage: $(basename "$0") [OPTIONS] exec [EXEC_OPTIONS] SERVICE [EXEC_ARGS...]"
+    echo
+    echo "Execute a command in a running service"
+    echo
+    echo "OPTIONS:"
+    echo "  -h, --help                  Display command usage help"
+    echo "  -H, --host string           Override the service host"
+    echo "  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)"
+    echo "  -p, --project-name string   Project(Stack) name"
+    echo "  -v, --verbose               Print verbose output"
+    echo
+    echo "EXEC_OPTIONS"
+    echo "  -i, --interactive       Keep STDIN open even if not attached"
+    echo "  -t, --tty               Allocate a pseudo-TTY"
+    echo "  -u, --user string       Username or UID (format: \"<name|uid>[:<group|gid>]\")"
+    echo "  -w, --workdir string    Working directory inside the container"
+}
 
-    # Apply pre-processed options
-    set -- "${ARGV[@]}"
+function parse_exec() {
 
 	# Parse options
 	END_OF_OPT=
 	POSITIONAL=()
 	while [[ $# -gt 0 ]]; do
 	case "${END_OF_OPT}${1}" in
-		-h|--help)          usage_command; exit 0 ;;
-		-H|--host)          shift; HOST="$1" ;;
-		-P|--port)          shift; PORT="${1}" ;;
-		-s|--stack)         shift; STACK="${1}" ;;
-		-e|--env)           shift; ENV_VARS+=("$1") ;;
-        -i|--interactive)   shift; INTERACTIVE=1 ;;
-        -t|--tty)           shift; TTY=1 ;;
-		-u|--user)          shift; USERNAME="$1" ;;
-        -v|--verbose)       shift; VERBOSE=1 ;;
-        -w|--workdir)       shift; WORKDIR="$1" ;;
-		--)                 END_OF_OPT=1 ;;
+		-h|--help)          usage_exec; exit 0 ;;
+        -i|--interactive)   INTERACTIVE=1; 
+                            [ -n "$VERBOSE" ] && echo "INTERACTIVE=$INTERACTIVE"
+                            ;;
+        -t|--tty)           TTY=1; 
+                            [ -n "$VERBOSE" ] && echo "TTY=$TTY"
+                            ;;
+		-u|--user)          shift; USERNAME="$1"; 
+                            [ -n "$VERBOSE" ] && echo "USERNAME=$USERNAME";
+                            ;;
+        -w|--workdir)       shift; WORKDIR="$1"; 
+                            [ -n "$VERBOSE" ] && echo "WORKDIR=$WORKDIR";
+                            ;;
+		--)                 END_OF_OPT=1; 
+                            [ -n "$VERBOSE" ] && echo "END_OF_OPT=$END_OF_OPT"
+                            ;;
 		-*)                 invalid "$1" ;;
-		*)                  POSITIONAL+=("$1") ;;
+#		*)                  POSITIONAL+=("$1") ;;
+        *)                  SERVICE="${1}"; shift; 
+                            [ -n "$VERBOSE" ] && echo "SERVICE=$SERVICE"
+                            break ;;
 	esac
 	shift
 	done
+	# Capture remaining arguments
+    ARGV=( "$@" )
 }
 
 
@@ -145,9 +173,10 @@ case "$COMMAND" in
                             missing "STACK"
                         fi
                         exec docker stack $COMMAND $STACK "$@" ;;
-    exec)               SERVICE="$1"; shift
-                        [ -n "$VERBOSE" ] && echo "SERVICE=$SERVICE"
-                        NODE_CMD="docker stack ps $STACK --format '{{ .Node }}' | head -n1"
+    exec)               parse_exec "$@" 
+                        # Apply remaining arguments
+                        set -- "${ARGV[@]}"
+                        NODE_CMD="docker stack ps $STACK -f desired-state=running --format '{{ .Node }}' | head -n1"
                         [ -n "$VERBOSE" ] && echo "NODE_CMD=$NODE_CMD"
                         NODE=$(eval "$NODE_CMD")
                         [ -n "$VERBOSE" ] && echo "NODE=$NODE"
@@ -155,9 +184,11 @@ case "$COMMAND" in
                         [ -n "$VERBOSE" ] && echo "CONTAINER_CMD=$CONTAINER_CMD"
                         CONTAINER=$(eval "$CONTAINER_CMD")
                         [ -n "$VERBOSE" ] && echo "CONTAINER=$CONTAINER"
-                        EXEC_ARG="${@:-$DEFAULT_EXEC_ARG}"
-                        [ -n "$VERBOSE" ] && echo "EXEC_ARG=$EXEC_ARG"
-                        EXEC_CMD="docker -H ${HOST:-$NODE}:${PORT:-$DEFAULT_PORT} exec -it $CONTAINER $EXEC_ARG"
+                        EXEC_OPTIONS="${INTERACTIVE:+ -i}${TTY:+ -t}${USERNAME:+ -u $USERNAME}${WORKDIR:+ -w $WORKDIR}"
+                        [ -n "$VERBOSE" ] && echo "EXEC_OPTIONS=$EXEC_OPTIONS"
+                        EXEC_ARGS="${@:-$DEFAULT_EXEC_ARGS}"
+                        [ -n "$VERBOSE" ] && echo "EXEC_ARGS=$EXEC_ARGS"
+                        EXEC_CMD="docker -H ${HOST:-$NODE}:${PORT:-$DEFAULT_PORT} exec${EXEC_OPTIONS} $CONTAINER $EXEC_ARGS"
                         [ -n "$VERBOSE" ] && echo "EXEC_CMD=$EXEC_CMD"
                         exec $EXEC_CMD
                         ;;
