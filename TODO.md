@@ -6,7 +6,7 @@
  * DONE: fix exec subcommand parsing
  * DONE: cleanup docs
  * DONE: add logs as a command
- * add example usage to the README
+ * DONE: add example usage to the README
  * incorporate the ENV_ARGS
  * add the STACK name to the service filter (or use grep)
  * add deploy as a command

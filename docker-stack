@@ -53,8 +53,9 @@ function usage_command() {
     echo "  -v, --verbose               Print verbose output"
     echo
     echo "COMMANDS:"
-    echo "  ls          List stacks."
     echo "  exec        Execute a command in a running container."
+    echo "  logs        Fetch the logs of a container"
+    echo "  ls          List stacks."
     echo "  ps          List the tasks in the stack."
     echo "  services    List the services in the stack."
 }
