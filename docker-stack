@@ -105,6 +105,7 @@ function usage_exec() {
     echo "  -v, --verbose               Print verbose output"
     echo
     echo "EXEC_OPTIONS"
+    echo "  -h, --help              Display command usage help"
     echo "  -i, --interactive       Keep STDIN open even if not attached"
     echo "  -t, --tty               Allocate a pseudo-TTY"
     echo "  -u, --user string       Username or UID (format: \"<name|uid>[:<group|gid>]\")"
@@ -145,6 +146,63 @@ function parse_exec() {
 	# Capture remaining arguments
     ARGV=( "$@" )
 }
+
+function usage_logs() {
+    echo
+    echo "Usage: $(basename "$0") [OPTIONS] logs [LOGS_OPTIONS] SERVICE [LOGS_ARGS...]"
+    echo
+    echo "Fetch the logs of a container"
+    echo
+    echo "OPTIONS:"
+    echo "  -h, --help                  Display command usage help"
+    echo "  -H, --host string           Override the service host"
+    echo "  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)"
+    echo "  -p, --project-name string   Project(Stack) name"
+    echo "  -v, --verbose               Print verbose output"
+    echo
+    echo "EXEC_OPTIONS"
+    echo "  -h, --help              Display command usage help"
+    echo "      --details           Show extra details provided to logs"
+    echo "  -f, --follow            Follow log output"
+    echo "  -n, --tail string       Number of lines to show from the end of the logs (default \"all\")"
+    echo "  -t, --timestamps        Show timestamps"
+}
+
+function parse_logs() {
+
+	# Parse options
+	END_OF_OPT=
+	POSITIONAL=()
+	while [[ $# -gt 0 ]]; do
+	case "${END_OF_OPT}${1}" in
+		-h|--help)          usage_logs; exit 0 ;;
+           --details)       DETAILS=1; 
+                            [ -n "$VERBOSE" ] && echo "DETAILS=$DETAILS"
+                            ;;
+        -f|--follow)        FOLLOW=1; 
+                            [ -n "$VERBOSE" ] && echo "FOLLOW=$FOLLOW"
+                            ;;
+		-n|--tail)          shift; TAIL="$1"; 
+                            [ -n "$VERBOSE" ] && echo "TAIL=$TAIL";
+                            ;;
+        -t|--timestamps)    TIMESTAMPS=1;
+                            [ -n "$VERBOSE" ] && echo "TIMESTAMPS=$TIMESTAMPS";
+                            ;;
+		--)                 END_OF_OPT=1; 
+                            [ -n "$VERBOSE" ] && echo "END_OF_OPT=$END_OF_OPT"
+                            ;;
+		-*)                 invalid "$1" ;;
+#		*)                  POSITIONAL+=("$1") ;;
+        *)                  SERVICE="${1}"; shift; 
+                            [ -n "$VERBOSE" ] && echo "SERVICE=$SERVICE"
+                            break ;;
+	esac
+	shift
+	done
+	# Capture remaining arguments
+    ARGV=( "$@" )
+}
+
 
 
 # Preprocess to deal with long_opt=value type parameters
@@ -191,6 +249,25 @@ case "$COMMAND" in
                         EXEC_CMD="docker -H ${HOST:-$NODE}:${PORT:-$DEFAULT_PORT} exec${EXEC_OPTIONS} $CONTAINER $EXEC_ARGS"
                         [ -n "$VERBOSE" ] && echo "EXEC_CMD=$EXEC_CMD"
                         exec $EXEC_CMD
+                        ;;
+    logs)               parse_logs "$@" 
+                        # Apply remaining arguments
+                        set -- "${ARGV[@]}"
+                        NODE_CMD="docker stack ps $STACK -f desired-state=running --format '{{ .Node }}' | head -n1"
+                        [ -n "$VERBOSE" ] && echo "NODE_CMD=$NODE_CMD"
+                        NODE=$(eval "$NODE_CMD")
+                        [ -n "$VERBOSE" ] && echo "NODE=$NODE"
+                        CONTAINER_CMD="docker -H ${HOST:-$NODE}:${PORT:-2375} ps -f name=$STACK_$SERVICE -q | head -n1" 
+                        [ -n "$VERBOSE" ] && echo "CONTAINER_CMD=$CONTAINER_CMD"
+                        CONTAINER=$(eval "$CONTAINER_CMD")
+                        [ -n "$VERBOSE" ] && echo "CONTAINER=$CONTAINER"
+                        LOGS_OPTIONS="${DETAILS:+ --details}${FOLLOW:+ -f}${TAIL:+ -n $TAIL}${TIMESTAMPS:+ -t}"
+                        [ -n "$VERBOSE" ] && echo "LOGS_OPTIONS=$LOGS_OPTIONS"
+                        LOGS_ARGS="${@:-$DEFAULT_LOGS_ARGS}"
+                        [ -n "$VERBOSE" ] && echo "LOGS_ARGS=$LOGS_ARGS"
+                        LOGS_CMD="docker -H ${HOST:-$NODE}:${PORT:-$DEFAULT_PORT} logs${LOGS_OPTIONS} $CONTAINER $LOGS_ARGS"
+                        [ -n "$VERBOSE" ] && echo "EXEC_CMD=$LOGS_CMD"
+                        exec $LOGS_CMD
                         ;;
     *)                  invalid "$COMMAND" ;;
 esac

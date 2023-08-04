@@ -5,6 +5,10 @@
  * DONE: add install script
  * DONE: fix exec subcommand parsing
  * DONE: cleanup docs
+ * DONE: add logs as a command
+ * incorporate the ENV_ARGS
  * add the STACK name to the service filter (or use grep)
- * add logs as a command
+ * add deploy as a command
+ * add rm as a command
+ * add up and down as aliases for deploy and rm
  * use docker-compose to preprocess yaml files for deployment
