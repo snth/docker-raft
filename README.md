@@ -17,7 +17,6 @@ Run
 to see the help. Hopefully the rest is self-explanatory from there.
 
 	$ docker-stack -h
-	ERROR: COMMAND must be specified
 
 	Usage: docker-stack [OPTIONS] COMMAND [ARG...]
 
@@ -32,8 +31,9 @@ to see the help. Hopefully the rest is self-explanatory from there.
 	-v, --verbose               Print verbose output
 
 	COMMANDS:
-	ls          List stacks.
 	exec        Execute a command in a running container.
+	logs        Fetch the logs of a container
+	ls          List stacks.
 	ps          List the tasks in the stack.
 	services    List the services in the stack.
 
