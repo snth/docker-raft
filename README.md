@@ -6,4 +6,4 @@ Emulate docker-compose CLI for Docker Swarm
 
 Simply run
 
-    curl https://raw.githubusercontent.com/snth/docker-stack/main/install.sh | sh -c
+    bash <(curl https://raw.githubusercontent.com/snth/docker-stack/main/install.sh)
