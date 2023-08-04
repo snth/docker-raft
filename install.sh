@@ -9,7 +9,8 @@ SOURCE_URL="https://raw.githubusercontent.com/snth/docker-stack/main/docker-stac
 read -p "Installation directory? [$DEFAULT_TARGET_DIR] " TARGET_DIR
 read -p "Filename? [$DEFAULT_FILENAME] " FILENAME
 
-TARGET="$(dirname ${TARGET_DIR:-$DEFAULT_TARGET_DIR})/$(basename ${FILENAME:-$DEFAULT_FILENAME})"
+TARGET_DIR=${TARGET_DIR:-$DEFAULT_TARGET_DIR}
+TARGET="${TARGET_DIR%/}/$(basename ${FILENAME:-$DEFAULT_FILENAME})"
 echo "Installing to \"$TARGET\" from \"$SOURCE_URL\" ..."
 read -p "Continue? [y/N] "
 if [[ $REPLY != [yY]* ]]; then
