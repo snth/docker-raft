@@ -1,0 +1,125 @@
+#!/bin/bash
+set -e
+
+function invalid() {
+  echo "ERROR: Unrecognized argument: $1" >&2
+  usage
+  exit 1
+}
+
+function preprocess {
+	# Pre-process options to:
+	# - expand -xyz into -x -y -z
+	# - expand --longopt=arg into --longopt arg
+	ARGV=()
+	while [[ $# -gt 0 ]]; do
+		arg="$1"; shift
+		case "${END_OF_OPT}${arg}" in
+			--) 	ARGV+=("$arg"); ;;
+			--*=*)	ARGV+=("${arg%%=*}" "${arg#*=}") ;;
+			--*) 	ARGV+=("$arg") ;;
+			-*) 	for i in $(seq 2 ${#arg}); do 
+						ARGV+=("-${arg:i-1:1}"); 
+					done ;;
+			*) 		ARGV+=("$arg") ;;
+		esac
+	done
+}
+
+# Report usage
+function usage() {
+    echo
+    echo "Usage: $(basename "$0") [OPTIONS] STACK COMMAND [ARG...]"
+    echo
+    echo "Execute a command in a running service"
+    echo
+    echo "Options:"
+    echo "  -h, --help              Display command usage help"
+    echo "  -H, --host string       Override the service host"
+    echo "  -P, --port number       Port to connect to host on (default:2375)"
+    echo
+    echo "Exec"
+    echo "  -e, --env list          Set environment variables"
+    echo "  -i, --interactive       Keep STDIN open even if not attached"
+    echo "  -t, --tty               Allocate a pseudo-TTY"
+    echo "  -u, --user string       Username or UID (format: \"<name|uid>[:<group|gid>]\")"
+    echo "  -w, --workdir string    Working directory inside the container"
+    echo
+    echo "Commands:"
+    echo "  ls          List stacks"
+    echo "  ps          List the tasks in the stack"
+    echo "  services    List the services in the stack"
+}
+
+function parse {
+    # Preprocess to deal with long_opt=value type parameters
+    preprocess "$@"
+
+    # Apply pre-processed options
+    set -- "${ARGV[@]}"
+
+	# Parse options
+	END_OF_OPT=
+	POSITIONAL=()
+	while [[ $# -gt 0 ]]; do
+	case "${END_OF_OPT}${1}" in
+		-h|--help)          usage; exit 0 ;;
+		-H|--host)          shift; HOST="$1" ;;
+		-P|--port)          shift; PORT="${1}" ;;
+		-e|--env)           shift; ENV_VARS+=("$1") ;;
+        -i|--interactive)   shift; INTERACTIVE=1 ;;
+        -t|--tty)           shift; TTY=1 ;;
+		-u|--user)          shift; USERNAME="$1" ;;
+        -w|--workdir)       shift; WORKDIR="$1" ;;
+		--)                 END_OF_OPT=1 ;;
+		-*)                 invalid "$1" ;;
+		*)                  POSITIONAL+=("$1") ;;
+	esac
+	shift
+	done
+}
+
+# Parse arguments
+parse "$@"
+
+# Restore the positional arguments
+set -- "${POSITIONAL[@]}"
+
+# Application logic
+STACK="$1"; shift
+if [ -z "$STACK" ]; then 
+    echo "ERROR: STACK must be specified"
+    usage
+    exit 1
+fi
+
+COMMAND="$1"; shift
+if [ -z "$COMMAND" ]; then 
+    echo "ERROR: COMMAND must be specified"
+    usage
+    exit 1
+fi
+
+# TODO:
+#   * add --verbose option which prints the commands below
+#   * parse only the arguments required at each command level
+#   * add logs as a command
+#   * use grep to filter the services by stack
+#   * rename to docker-swarm script
+#   * use docker-compose to preprocess yaml files for deployment
+case "$COMMAND" in
+    ls|ps|services)     docker stack $COMMAND $STACK "$@" ;;
+    exec)               SERVICE="$1"; shift
+                        #echo "SERVICE=$SERVICE"
+                        EXEC_CMD="${@:-bash}"
+                        #echo "EXEC_CMD=$EXEC_CMD"
+                        NODE=$(docker stack ps $STACK --format "{{ .Node }}" | head -n1)
+                        #echo "NODE=$NODE"
+                        CONTAINER=$(docker -H ${HOST:-$NODE}:${PORT:-2375} ps -f name=$STACK_$SERVICE -q | head -n1) 
+                        #echo "CONTAINER=$CONTAINER"
+                        CMD="docker -H ${HOST:-$NODE}:${PORT:-2375} exec -it $CONTAINER $EXEC_CMD"
+                        echo "CMD=$CMD"
+                        $CMD
+                        ;;
+    *)                  invalid ;;
+esac
