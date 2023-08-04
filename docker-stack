@@ -161,7 +161,7 @@ function usage_logs() {
     echo "  -p, --project-name string   Project(Stack) name"
     echo "  -v, --verbose               Print verbose output"
     echo
-    echo "EXEC_OPTIONS"
+    echo "LOGS_OPTIONS"
     echo "  -h, --help              Display command usage help"
     echo "      --details           Show extra details provided to logs"
     echo "  -f, --follow            Follow log output"

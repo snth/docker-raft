@@ -75,7 +75,7 @@ to see the help. Hopefully the rest is self-explanatory from there.
 	-p, --project-name string   Project(Stack) name
 	-v, --verbose               Print verbose output
 
-	EXEC_OPTIONS
+	LOGS_OPTIONS
 	-h, --help              Display command usage help
 		--details           Show extra details provided to logs
 	-f, --follow            Follow log output
