@@ -76,11 +76,14 @@ OPTIONS:"
   -v, --verbose               Print verbose output
 
 COMMANDS:
+  config      Parse, resolve and render compose file in canonical format
+  down        Stop and remove containers
   exec        Execute a command in a running container.
   logs        Fetch the logs of a container
   ls          List stacks.
   ps          List the tasks in the stack.
   services    List the services in the stack.
+  up          Create and start containers
 EOF
 }
 
@@ -281,6 +284,17 @@ case "$COMMAND" in
                             missing "STACK"
                         fi
                         exec docker stack $COMMAND $STACK "$@" ;;
+                        # FIXME: add the FILES array
+    config)             exec docker compose -f FILES config --no-consistency "$@" exec docker stack config -c - ;;
+    deploy|up)          if [ -z "$STACK" ]; then
+                            missing "STACK"
+                        fi
+                        # FIXME: check wether to use docker-compose or docker compose
+                        docker compose -f FILES config --no-consistency | exec docker stack deploy -c - $STACK "$@" ;;
+    rm|down)            if [ -z "$STACK" ]; then
+                            missing "STACK"
+                        fi
+                        exec docker stack rm $STACK "$@" ;;
     exec)               parse_exec "$@" 
                         # Apply remaining arguments
                         set -- "${ARGV[@]}"

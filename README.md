@@ -12,6 +12,7 @@ docker swarm.
 - [Usage](#usage)
 	- [exec](#exec)
 	- [logs](#logs)
+	- [deploy](#deploy)
 - [FAQ](#faq)
 - [License](#license)
 
@@ -116,6 +117,8 @@ Hopefully the rest is self-explanatory from there.
 	-f, --follow            Follow log output
 	-n, --tail string       Number of lines to show from the end of the logs (default "all")
 	-t, --timestamps        Show timestamps
+
+### deploy
 
 ## FAQ
 
