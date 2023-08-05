@@ -4,6 +4,7 @@ set -e
 # Defaults
 DEFAULT_PORT=2375
 DEFAULT_EXEC_ARGS=bash
+DEFAULT_LOGS_ARGS=
 
 # Functions
 function invalid() {
@@ -206,15 +207,18 @@ function parse_logs() {
 
 function lookup_node_and_container() {
 	# Lookup the NODE and CONTAINER
-	#NODE_CMD="docker stack ps $STACK -f desired-state=running --format '{{ .Node }}' | head -n1"
-	NODE_CMD="docker stack ps $STACK --format '{{ .Node }}' | head -n1"
-	[ -n "$VERBOSE" ] && echo "NODE_CMD=$NODE_CMD"
-	NODE=$(eval "$NODE_CMD")
-	[ -n "$VERBOSE" ] && echo "NODE=$NODE"
-	CONTAINER_CMD="docker -H ${HOST:-$NODE}:${PORT:-2375} ps -f name=$STACK_$SERVICE -q | head -n1" 
-	[ -n "$VERBOSE" ] && echo "CONTAINER_CMD=$CONTAINER_CMD"
-	CONTAINER=$(eval "$CONTAINER_CMD")
-	[ -n "$VERBOSE" ] && echo "CONTAINER=$CONTAINER"
+    STACK_SERVICE_CMD="docker service ls -f name=$STACK --format '{{.Name}}' | grep $SERVICE | head -n1"
+    [ -n "$VERBOSE" ] && echo "STACK_SERVICE_CMD=$STACK_SERVICE_CMD"
+    STACK_SERVICE=$(eval "$STACK_SERVICE_CMD")
+    [ -n "$VERBOSE" ] && echo "STACK_SERVICE=$STACK_SERVICE"
+    NODE_CMD="docker service ps $STACK_SERVICE --format '{{.Node}}' | head -n1"
+    [ -n "$VERBOSE" ] && echo "NODE_CMD=$NODE_CMD"
+    NODE=$(eval "$NODE_CMD")
+    [ -n "$VERBOSE" ] && echo "NODE=$NODE"
+    CONTAINER_CMD="docker -H ${HOST:-$NODE}:${PORT:-2375} ps -f name=$STACK_SERVICE -q | head -n1" 
+    [ -n "$VERBOSE" ] && echo "CONTAINER_CMD=$CONTAINER_CMD"
+    CONTAINER=$(eval "$CONTAINER_CMD")
+    [ -n "$VERBOSE" ] && echo "CONTAINER=$CONTAINER"
 }
 
 

@@ -7,9 +7,9 @@
  * DONE: cleanup docs
  * DONE: add logs as a command
  * DONE: add example usage to the README
- * incorporate the ENV_ARGS
- * add the STACK name to the service filter (or use grep)
+ * DONE: add the STACK name to the service filter (or use grep)
  * add deploy as a command
  * add rm as a command
  * add up and down as aliases for deploy and rm
  * use docker-compose to preprocess yaml files for deployment
+ * incorporate the ENV_ARGS
