@@ -204,6 +204,18 @@ function parse_logs() {
     ARGV=( "$@" )
 }
 
+function lookup_node_and_container() {
+	# Lookup the NODE and CONTAINER
+	#NODE_CMD="docker stack ps $STACK -f desired-state=running --format '{{ .Node }}' | head -n1"
+	NODE_CMD="docker stack ps $STACK --format '{{ .Node }}' | head -n1"
+	[ -n "$VERBOSE" ] && echo "NODE_CMD=$NODE_CMD"
+	NODE=$(eval "$NODE_CMD")
+	[ -n "$VERBOSE" ] && echo "NODE=$NODE"
+	CONTAINER_CMD="docker -H ${HOST:-$NODE}:${PORT:-2375} ps -f name=$STACK_$SERVICE -q | head -n1" 
+	[ -n "$VERBOSE" ] && echo "CONTAINER_CMD=$CONTAINER_CMD"
+	CONTAINER=$(eval "$CONTAINER_CMD")
+	[ -n "$VERBOSE" ] && echo "CONTAINER=$CONTAINER"
+}
 
 
 # Preprocess to deal with long_opt=value type parameters
@@ -235,14 +247,7 @@ case "$COMMAND" in
     exec)               parse_exec "$@" 
                         # Apply remaining arguments
                         set -- "${ARGV[@]}"
-                        NODE_CMD="docker stack ps $STACK -f desired-state=running --format '{{ .Node }}' | head -n1"
-                        [ -n "$VERBOSE" ] && echo "NODE_CMD=$NODE_CMD"
-                        NODE=$(eval "$NODE_CMD")
-                        [ -n "$VERBOSE" ] && echo "NODE=$NODE"
-                        CONTAINER_CMD="docker -H ${HOST:-$NODE}:${PORT:-2375} ps -f name=$STACK_$SERVICE -q | head -n1" 
-                        [ -n "$VERBOSE" ] && echo "CONTAINER_CMD=$CONTAINER_CMD"
-                        CONTAINER=$(eval "$CONTAINER_CMD")
-                        [ -n "$VERBOSE" ] && echo "CONTAINER=$CONTAINER"
+						lookup_node_and_container
                         EXEC_OPTIONS="${INTERACTIVE:+ -i}${TTY:+ -t}${USERNAME:+ -u $USERNAME}${WORKDIR:+ -w $WORKDIR}"
                         [ -n "$VERBOSE" ] && echo "EXEC_OPTIONS=$EXEC_OPTIONS"
                         EXEC_ARGS="${@:-$DEFAULT_EXEC_ARGS}"
@@ -254,14 +259,7 @@ case "$COMMAND" in
     logs)               parse_logs "$@" 
                         # Apply remaining arguments
                         set -- "${ARGV[@]}"
-                        NODE_CMD="docker stack ps $STACK -f desired-state=running --format '{{ .Node }}' | head -n1"
-                        [ -n "$VERBOSE" ] && echo "NODE_CMD=$NODE_CMD"
-                        NODE=$(eval "$NODE_CMD")
-                        [ -n "$VERBOSE" ] && echo "NODE=$NODE"
-                        CONTAINER_CMD="docker -H ${HOST:-$NODE}:${PORT:-2375} ps -f name=$STACK_$SERVICE -q | head -n1" 
-                        [ -n "$VERBOSE" ] && echo "CONTAINER_CMD=$CONTAINER_CMD"
-                        CONTAINER=$(eval "$CONTAINER_CMD")
-                        [ -n "$VERBOSE" ] && echo "CONTAINER=$CONTAINER"
+						lookup_node_and_container
                         LOGS_OPTIONS="${DETAILS:+ --details}${FOLLOW:+ -f}${TAIL:+ -n $TAIL}${TIMESTAMPS:+ -t}"
                         [ -n "$VERBOSE" ] && echo "LOGS_OPTIONS=$LOGS_OPTIONS"
                         LOGS_ARGS="${@:-$DEFAULT_LOGS_ARGS}"
