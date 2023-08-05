@@ -1,6 +1,27 @@
 #!/bin/bash
 set -e
 
+# Print metadata for Docker CLI plugin
+if [[ "$1" == "docker-cli-plugin-metadata" ]]; then
+  cat <<EOF
+{
+  "SchemaVersion": "0.1.0",
+  "Vendor": "Tobias Brandt",
+  "Version": "v0.1",
+  "ShortDescription": "Emulate docker-compose CLI for Docker Swarm"
+}
+EOF
+  exit
+fi
+
+# Shift arguments to remove plugin name
+[ "$1" = "raft" ] && shift
+
+# TODO: correctly display name depending on whether called as a Docker CLI
+#		plugin or script.
+#DOCKERCMD=$(echo "$0" | sed 's/.*\///' | sed 's/[^-]*-//')
+DOCKERCMD=$(echo "$(basename $0)" | sed 's/.*\///' | sed 's/-/ /')
+
 # Defaults
 DEFAULT_PORT=2375
 DEFAULT_EXEC_ARGS=bash
@@ -40,25 +61,27 @@ function preprocess() {
 
 # Report usage
 function usage_command() {
-    echo
-    echo "Usage: $(basename "$0") [OPTIONS] COMMAND [ARG...]"
-    echo
-    echo "Emulate the docker-compose CLI for Docker Swarm"
-    echo
-    echo "OPTIONS:"
-    echo "  -e, --env list              Set environment variables"
-    echo "  -h, --help                  Display command usage help"
-    echo "  -H, --host string           Override the service host"
-    echo "  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)"
-    echo "  -p, --project-name string   Project(Stack) name"
-    echo "  -v, --verbose               Print verbose output"
-    echo
-    echo "COMMANDS:"
-    echo "  exec        Execute a command in a running container."
-    echo "  logs        Fetch the logs of a container"
-    echo "  ls          List stacks."
-    echo "  ps          List the tasks in the stack."
-    echo "  services    List the services in the stack."
+	cat <<EOF
+
+Usage: $DOCKERCMD [OPTIONS] COMMAND [ARG...]
+
+Emulate the docker-compose CLI for Docker Swarm
+
+OPTIONS:"
+  -e, --env list              Set environment variables
+  -h, --help                  Display command usage help
+  -H, --host string           Override the service host
+  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)
+  -p, --project-name string   Project(Stack) name
+  -v, --verbose               Print verbose output
+
+COMMANDS:
+  exec        Execute a command in a running container.
+  logs        Fetch the logs of a container
+  ls          List stacks.
+  ps          List the tasks in the stack.
+  services    List the services in the stack.
+EOF
 }
 
 function parse_command() {
@@ -94,24 +117,26 @@ function parse_command() {
 }
 
 function usage_exec() {
-    echo
-    echo "Usage: $(basename "$0") [OPTIONS] exec [EXEC_OPTIONS] SERVICE [EXEC_ARGS...]"
-    echo
-    echo "Execute a command in a running service"
-    echo
-    echo "OPTIONS:"
-    echo "  -h, --help                  Display command usage help"
-    echo "  -H, --host string           Override the service host"
-    echo "  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)"
-    echo "  -p, --project-name string   Project(Stack) name"
-    echo "  -v, --verbose               Print verbose output"
-    echo
-    echo "EXEC_OPTIONS"
-    echo "  -h, --help              Display command usage help"
-    echo "  -i, --interactive       Keep STDIN open even if not attached"
-    echo "  -t, --tty               Allocate a pseudo-TTY"
-    echo "  -u, --user string       Username or UID (format: \"<name|uid>[:<group|gid>]\")"
-    echo "  -w, --workdir string    Working directory inside the container"
+cat <<EOF
+
+Usage: $DOCKERCMD [OPTIONS] exec [EXEC_OPTIONS] SERVICE [EXEC_ARGS...]
+
+Execute a command in a running service
+
+OPTIONS:
+  -h, --help                  Display command usage help
+  -H, --host string           Override the service host
+  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)
+  -p, --project-name string   Project(Stack) name
+  -v, --verbose               Print verbose output
+
+EXEC_OPTIONS
+  -h, --help              Display command usage help
+  -i, --interactive       Keep STDIN open even if not attached
+  -t, --tty               Allocate a pseudo-TTY
+  -u, --user string       Username or UID (format: "<name|uid>[:<group|gid>]")
+  -w, --workdir string    Working directory inside the container
+EOF
 }
 
 function parse_exec() {
@@ -150,24 +175,26 @@ function parse_exec() {
 }
 
 function usage_logs() {
-    echo
-    echo "Usage: $(basename "$0") [OPTIONS] logs [LOGS_OPTIONS] SERVICE [LOGS_ARGS...]"
-    echo
-    echo "Fetch the logs of a container"
-    echo
-    echo "OPTIONS:"
-    echo "  -h, --help                  Display command usage help"
-    echo "  -H, --host string           Override the service host"
-    echo "  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)"
-    echo "  -p, --project-name string   Project(Stack) name"
-    echo "  -v, --verbose               Print verbose output"
-    echo
-    echo "LOGS_OPTIONS"
-    echo "  -h, --help              Display command usage help"
-    echo "      --details           Show extra details provided to logs"
-    echo "  -f, --follow            Follow log output"
-    echo "  -n, --tail string       Number of lines to show from the end of the logs (default \"all\")"
-    echo "  -t, --timestamps        Show timestamps"
+cat <<EOF
+
+Usage: $DOCKERCMD [OPTIONS] logs [LOGS_OPTIONS] SERVICE [LOGS_ARGS...]
+
+Fetch the logs of a container
+
+OPTIONS:
+  -h, --help                  Display command usage help
+  -H, --host string           Override the service host
+  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)
+  -p, --project-name string   Project(Stack) name
+  -v, --verbose               Print verbose output
+
+LOGS_OPTIONS
+  -h, --help              Display command usage help
+      --details           Show extra details provided to logs
+  -f, --follow            Follow log output
+  -n, --tail string       Number of lines to show from the end of the logs (default "all")
+  -t, --timestamps        Show timestamps
+EOF
 }
 
 function parse_logs() {
@@ -237,7 +264,13 @@ set -- "${ARGV[@]}"
 # Restore the positional arguments
 #set -- "${POSITIONAL[@]}"
 
+
 # Application logic
+# -----------------
+
+# Display usage when called without arguments
+[ $# -lt 1 ] && usage_command && exit 0
+
 if [ -z "$COMMAND" ]; then 
     missing "COMMAND"
 fi
