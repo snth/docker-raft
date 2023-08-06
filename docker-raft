@@ -22,8 +22,14 @@ fi
 #DOCKERCMD=$(echo "$0" | sed 's/.*\///' | sed 's/[^-]*-//')
 DOCKERCMD=$(echo "$(basename $0)" | sed 's/.*\///' | sed 's/-/ /')
 
+# Utility command because Docker Compose quotes the published port numbers
+# whereas Docker Stack expects these to be numbers.
+UNQUOTE_NUMBERS_CMD="sed -r 's/: \"*([0-9]+)\"*/: \1/g'"
+
 # Defaults
 DEFAULT_PORT=2375
+DEFAULT_ENV_FILES=( "--env-file" ".env" )
+DEFAULT_COMPOSE_FILES=( "-f" "docker-compose.yml" )
 DEFAULT_EXEC_ARGS=bash
 DEFAULT_LOGS_ARGS=
 
@@ -69,6 +75,8 @@ Emulate the docker-compose CLI for Docker Swarm
 
 OPTIONS:"
   -e, --env list              Set environment variables
+      --env-file stringArray  Specify an alternate environment file
+  -f, --file stringArray      Compose configuration files
   -h, --help                  Display command usage help
   -H, --host string           Override the service host
   -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)
@@ -89,12 +97,18 @@ EOF
 
 function parse_command() {
 	# Parse options
-	END_OF_OPT=
-	POSITIONAL=()
+	ENV_FILES=()
+	COMPOSE_FILES=()
 	while [[ $# -gt 0 ]]; do
         case "${1}" in
             -e|--env)           shift; ENV_VARS+=("$1"); 
                                 [ -n "$VERBOSE" ] && echo "ENV_VARS=$ENV_VARS";
+                                ;;
+            --env-file)         ENV_FILES+=("$1"); shift; ENV_FILES+=("$1");
+                                [ -n "$VERBOSE" ] && echo "ENV_FILES=${ENV_FILES[@]}";
+                                ;;
+            -f|--file)          COMPOSE_FILES+=("$1"); shift; COMPOSE_FILES+=("$1");
+                                [ -n "$VERBOSE" ] && echo "COMPOSE_FILES=${COMPOSE_FILES[@]}";
                                 ;;
             -h|--help)          usage_command; exit 0 ;;
             -H|--host)          shift; HOST="${1}"; 
@@ -252,6 +266,9 @@ function lookup_node_and_container() {
 }
 
 
+# Display usage when called without arguments
+[ $# -lt 1 ] && usage_command && exit 0
+
 # Preprocess to deal with long_opt=value type parameters
 preprocess "$@"
 
@@ -271,9 +288,6 @@ set -- "${ARGV[@]}"
 # Application logic
 # -----------------
 
-# Display usage when called without arguments
-[ $# -lt 1 ] && usage_command && exit 0
-
 if [ -z "$COMMAND" ]; then 
     missing "COMMAND"
 fi
@@ -284,13 +298,22 @@ case "$COMMAND" in
                             missing "STACK"
                         fi
                         exec docker stack $COMMAND $STACK "$@" ;;
-                        # FIXME: add the FILES array
-    config)             exec docker compose -f FILES config --no-consistency "$@" exec docker stack config -c - ;;
+    config)             COMPOSE_CONFIG_CMD="docker compose ${COMPOSE_FILES[@]} config --no-consistency --no-normalize"
+                        [ -n "$VERBOSE" ] && echo "COMPOSE_CONFIG_CMD=$COMPOSE_CONFIG_CMD"
+                        STACK_CONFIG_CMD="docker stack config -c - $@"
+                        [ -n "$VERBOSE" ] && echo "STACK_CONFIG_CMD=$STACK_CONFIG_CMD"
+                        [ -n "$VERBOSE" ] && echo "UNQUOTE_NUMBERS_CMD=$UNQUOTE_NUMBERS_CMD"
+                        $COMPOSE_CONFIG_CMD | $UNQUOTE_NUMBERS_CMD
+                        #$COMPOSE_CONFIG_CMD | $UNQUOTE_NUMBERS_CMD | exec $STACK_CONFIG_CMD
+                        exit 0
+                        ;;
     deploy|up)          if [ -z "$STACK" ]; then
                             missing "STACK"
                         fi
                         # FIXME: check wether to use docker-compose or docker compose
-                        docker compose -f FILES config --no-consistency | exec docker stack deploy -c - $STACK "$@" ;;
+                        #docker compose -f FILES config --no-consistency | exec docker stack deploy -c - $STACK "$@" 
+                        $COMPOSE_CONFIG_CMD | $UNQUOTE_NUMBERS_CMD | exec docker stack deploy -c - $STACK "$@" 
+                        ;;
     rm|down)            if [ -z "$STACK" ]; then
                             missing "STACK"
                         fi
