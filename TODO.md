@@ -20,3 +20,8 @@
   * don't preprocess parameters after --
   * possibly remove bashisms
   * correctly display name depending on whether called as a Docker CLI plugin or script.
+  * add section on other notable projects
+      * docker-rollout
+      * docker-swarm-proxy
+      * docker-cli-plugins https://github.com/SvenDowideit/docker-cli-plugins
+      * docker-ex https://github.com/SvenDowideit/docker-cli-plugins/blob/master/docker-ex
