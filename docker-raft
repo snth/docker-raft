@@ -24,12 +24,12 @@ DOCKERCMD=$(echo "$(basename $0)" | sed 's/.*\///' | sed 's/-/ /')
 
 # Utility command because Docker Compose quotes the published port numbers
 # whereas Docker Stack expects these to be numbers.
-UNQUOTE_NUMBERS_CMD="sed -r 's/: \"*([0-9]+)\"*/: \1/g'"
+UNQUOTE_NUMBERS_CMD=( 'sed' '-r' 's/: ["]*([0-9]+)["]*/: \1/g' )
 
 # Defaults
 DEFAULT_PORT=2375
-DEFAULT_ENV_FILES=( "--env-file" ".env" )
-DEFAULT_COMPOSE_FILES=( "-f" "docker-compose.yml" )
+DEFAULT_ENV_FILES=( '--env-file' '.env' )
+DEFAULT_CONFIG_FILES=( 'docker-compose.yml' )
 DEFAULT_EXEC_ARGS=bash
 DEFAULT_LOGS_ARGS=
 
@@ -44,6 +44,18 @@ function missing() {
     echo "ERROR: ${1} must be specified" >&2
     usage_command
     exit 1
+}
+
+function prefix_array() {
+    IFS=$'\ca' local prefix="${1-}" input=( ${2-} )
+    #local prefix="${1-}" input=( ${2[@]-} )
+    # in order to modify the input array we have to use eval
+    #eval $2="()"
+    for elem in "${input[@]}"; do
+        echo "$prefix"
+        echo "$elem"
+    #    #eval $2+="($prefix $elem)"
+    done
 }
 
 function preprocess() {
@@ -98,36 +110,78 @@ EOF
 function parse_command() {
 	# Parse options
 	ENV_FILES=()
-	COMPOSE_FILES=()
+	CONFIG_FILES=()
 	while [[ $# -gt 0 ]]; do
         case "${1}" in
-            -e|--env)           shift; ENV_VARS+=("$1"); 
-                                [ -n "$VERBOSE" ] && echo "ENV_VARS=$ENV_VARS";
-                                ;;
-            --env-file)         ENV_FILES+=("$1"); shift; ENV_FILES+=("$1");
-                                [ -n "$VERBOSE" ] && echo "ENV_FILES=${ENV_FILES[@]}";
-                                ;;
-            -f|--file)          COMPOSE_FILES+=("$1"); shift; COMPOSE_FILES+=("$1");
-                                [ -n "$VERBOSE" ] && echo "COMPOSE_FILES=${COMPOSE_FILES[@]}";
-                                ;;
-            -h|--help)          usage_command; exit 0 ;;
-            -H|--host)          shift; HOST="${1}"; 
-                                [ -n "$VERBOSE" ] && echo "HOST=$HOST";
-                                ;;
-            -P|--port)          shift; PORT="${1}"; 
-                                [ -n "$VERBOSE" ] && echo "PORT=$PORT";
-                                ;;
-            -p|--project-name)  shift; STACK="${1}"; 
-                                [ -n "$VERBOSE" ] && echo "STACK=$STACK";
-                                ;;
-            -v|--verbose)       VERBOSE=1; 
-                                [ -n "$VERBOSE" ] && echo "VERBOSE=$VERBOSE";
-                                ;;
-            *)                  COMMAND="${1}"; shift; 
-                                [ -n "$VERBOSE" ] && echo "COMMAND=$COMMAND"
-                                break ;;
+            -e|--env)           shift; ENV_VARS+=("$1"); ;;
+            --env-file)         ENV_FILES+=("$1"); shift; ENV_FILES+=("$1"); ;;
+            -f|--file)          shift; CONFIG_FILES+=("$1"); ;;
+            -h|--help)          usage_command; exit 0; ;;
+            -H|--host)          shift; HOST="${1}"; ;;
+            -P|--port)          shift; PORT="${1}"; ;;
+            -p|--project-name)  shift; STACK="${1}"; ;;
+            -v|--verbose)       VERBOSE=1; ;;
+            *)                  COMMAND="${1}"; shift; break ;;
         esac
         shift
+	done
+	# Capture remaining arguments
+    ARGV=( "$@" )
+    # Handle default arguments
+    CONFIG_FILES=(${CONFIG_FILES[@]:-$DEFAULT_CONFIG_FILES})
+	# display debug output when VERBOSE is set
+    [ -n "$VERBOSE" ] && echo "ENV_VARS=$ENV_VARS";
+    [ -n "$VERBOSE" ] && echo "ENV_FILES=${ENV_FILES[@]}";
+    [ -n "$VERBOSE" ] && echo "CONFIG_FILES=${CONFIG_FILES[@]}";
+    [ -n "$VERBOSE" ] && echo "HOST=$HOST";
+    [ -n "$VERBOSE" ] && echo "PORT=$PORT";
+    [ -n "$VERBOSE" ] && echo "STACK=$STACK";
+    [ -n "$VERBOSE" ] && echo "VERBOSE=$VERBOSE";
+    [ -n "$VERBOSE" ] && echo "COMMAND=$COMMAND"
+}
+
+function usage_config() {
+cat <<EOF
+
+Usage: $DOCKERCMD [OPTIONS] config [CONFIG_OPTIONS] [EXEC_ARGS...]
+
+Compile and display the config
+
+OPTIONS:
+  -h, --help                  Display command usage help
+  -H, --host string           Override the service host
+  -P, --port number           Port to connect to host on (default:$DEFAULT_PORT)
+  -p, --project-name string   Project(Stack) name
+  -v, --verbose               Print verbose output
+
+CONFIG_OPTIONS
+  -h, --help              Display config usage help
+  -C, --no-compose-config Don't preprocess with docker-compose config
+  -S, --no-stack-config   Don't process with docker-stack config
+EOF
+}
+
+function parse_config() {
+
+	# Parse options
+	END_OF_OPT=
+	POSITIONAL=()
+	while [[ $# -gt 0 ]]; do
+	case "${END_OF_OPT}${1}" in
+		-h|--help)              usage_exec; exit 0 ;;
+        -C|--no-compose-config) NO_COMPOSE_CONFIG=1; 
+                                [ -n "$VERBOSE" ] && echo "NO_COMPOSE_CONFIG=$NO_COMPOSE_CONFIG"
+                                ;;
+        -S|--no-stack-config)   NO_STACK_CONFIG=1; 
+                                [ -n "$VERBOSE" ] && echo "NO_STACK_CONFIG=$NO_STACK_CONFIG"
+                                ;;
+		--)                     END_OF_OPT=1; 
+                                [ -n "$VERBOSE" ] && echo "END_OF_OPT=$END_OF_OPT"
+                                ;;
+		-*)                     invalid "$1" ;;
+#		*)                      POSITIONAL+=("$1") ;;
+	esac
+	shift
 	done
 	# Capture remaining arguments
     ARGV=( "$@" )
@@ -298,21 +352,44 @@ case "$COMMAND" in
                             missing "STACK"
                         fi
                         exec docker stack $COMMAND $STACK "$@" ;;
-    config)             COMPOSE_CONFIG_CMD="docker compose ${COMPOSE_FILES[@]} config --no-consistency --no-normalize"
-                        [ -n "$VERBOSE" ] && echo "COMPOSE_CONFIG_CMD=$COMPOSE_CONFIG_CMD"
-                        STACK_CONFIG_CMD="docker stack config -c - $@"
-                        [ -n "$VERBOSE" ] && echo "STACK_CONFIG_CMD=$STACK_CONFIG_CMD"
-                        [ -n "$VERBOSE" ] && echo "UNQUOTE_NUMBERS_CMD=$UNQUOTE_NUMBERS_CMD"
-                        $COMPOSE_CONFIG_CMD | $UNQUOTE_NUMBERS_CMD
-                        #$COMPOSE_CONFIG_CMD | $UNQUOTE_NUMBERS_CMD | exec $STACK_CONFIG_CMD
-                        exit 0
+    config)             parse_config "$@"
+                        # Apply remaining arguments
+                        set -- "${ARGV[@]}"
+                        # FIXME: the following should be factored out into a function
+                        #        so that it's also usable by deploy
+                        if [ -z "$NO_COMPOSE_CONFIG" ]; then
+                            COMPOSE_CONFIG_FILES=( $(prefix_array '-f' "${CONFIG_FILES[@]}") )
+                            STACK_CONFIG_FILES=( '-c' '-' )
+                            CONFIG_COMPOSE_CMD=( docker compose "${COMPOSE_CONFIG_FILES[@]}" config --no-consistency --no-normalize )
+                            [ -n "$VERBOSE" ] && echo "CONFIG_COMPOSE_CMD=${CONFIG_COMPOSE_CMD[@]}"
+                        else
+                            STACK_CONFIG_FILES=( $(prefix_array '-c' "${CONFIG_FILES[@]}") )
+                        fi
+                        if [ -z "$NO_STACK_CONFIG" ]; then
+                            CONFIG_STACK_CMD=( docker stack config "${STACK_CONFIG_FILES[@]}" "$@" )
+                        fi
+                        [ -n "$VERBOSE" ] && echo "CONFIG_STACK_CMD=${CONFIG_STACK_CMD[@]}"
+                        if [ -n "$NO_COMPOSE_CONFIG" ] && [ -n "$NO_STACK_CONFIG" ]; then
+                            echo "ERROR: -C and -S can't both be specified at the same time"
+                            usage_config
+                            exit 1
+                        elif [ -z "$NO_COMPOSE_CONFIG" ] && [ -z "$NO_STACK_CONFIG" ]; then
+                            CONFIG_CMD="${CONFIG_COMPOSE_CMD[@]} | ${UNQUOTE_NUMBERS_CMD[@]} | exec ${CONFIG_STACK_CMD[@]}"
+                            [ -n "$VERBOSE" ] && echo "CONFIG_CMD=${CONFIG_CMD[@]}"
+                            # Next line needs to be as follows otherwise we have problems with sed and the pipe |
+                            ${CONFIG_COMPOSE_CMD[@]} | "${UNQUOTE_NUMBERS_CMD[@]}" | exec ${CONFIG_STACK_CMD[@]}
+                        else
+                            CONFIG_CMD="exec ${CONFIG_COMPOSE_CMD[@]} ${CONFIG_STACK_CMD[@]}"
+                            [ -n "$VERBOSE" ] && echo "CONFIG_CMD=${CONFIG_CMD[@]}"
+                            $CONFIG_CMD
+                        fi
                         ;;
     deploy|up)          if [ -z "$STACK" ]; then
                             missing "STACK"
                         fi
                         # FIXME: check wether to use docker-compose or docker compose
                         #docker compose -f FILES config --no-consistency | exec docker stack deploy -c - $STACK "$@" 
-                        $COMPOSE_CONFIG_CMD | $UNQUOTE_NUMBERS_CMD | exec docker stack deploy -c - $STACK "$@" 
+                        $CONFIG_COMPOSE_CMD | $UNQUOTE_NUMBERS_CMD | exec docker stack deploy -c - $STACK "$@" 
                         ;;
     rm|down)            if [ -z "$STACK" ]; then
                             missing "STACK"
